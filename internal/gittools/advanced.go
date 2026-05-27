@@ -8,14 +8,19 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func registerAdvanced(s *server.MCPServer, repo string) {
+func registerAdvanced(s *server.MCPServer, defaultRepo string) {
 	s.AddTool(mcp.NewTool("git_rebase",
 		mcp.WithDescription("Rebase the current branch onto another. Interactive rebase is not supported."),
+		withRepo(),
 		mcp.WithString("onto", mcp.Required(), mcp.Description("Target branch or revision to rebase onto.")),
 		mcp.WithBoolean("abort", mcp.Description("Abort an in-progress rebase (ignores 'onto').")),
 		mcp.WithBoolean("continue", mcp.Description("Continue an in-progress rebase after resolving conflicts.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		if a.Bool("abort", false) {
 			out, err := runGit(ctx, repo, "rebase", "--abort")
 			if err != nil {
@@ -46,6 +51,7 @@ func registerAdvanced(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_cherry_pick",
 		mcp.WithDescription("Apply commits onto the current branch."),
+		withRepo(),
 		mcp.WithArray("commits", mcp.Description("List of commit revisions to cherry-pick."),
 			mcp.Items(map[string]any{"type": "string"})),
 		mcp.WithBoolean("abort", mcp.Description("Abort an in-progress cherry-pick.")),
@@ -53,6 +59,10 @@ func registerAdvanced(s *server.MCPServer, repo string) {
 		mcp.WithBoolean("no_commit", mcp.Description("Apply changes without committing (-n).")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		if a.Bool("abort", false) {
 			out, err := runGit(ctx, repo, "cherry-pick", "--abort")
 			if err != nil {

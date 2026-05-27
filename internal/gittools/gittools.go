@@ -32,14 +32,55 @@ func openRepo(path string) (*git.Repository, error) {
 	return git.PlainOpenWithOptions(path, &git.PlainOpenOptions{DetectDotGit: true})
 }
 
-// Register attaches every git tool to the MCP server.
-func Register(s *server.MCPServer, repo string) {
-	registerRead(s, repo)
-	registerWrite(s, repo)
-	registerNetwork(s, repo)
-	registerDangerous(s, repo)
-	registerWorktree(s, repo)
-	registerAdvanced(s, repo)
+// Register attaches every git tool to the MCP server. defaultRepo is used for
+// any tool call that omits the per-call "repo" argument; it may be empty, in
+// which case a "repo" argument becomes mandatory.
+func Register(s *server.MCPServer, defaultRepo string) {
+	registerRead(s, defaultRepo)
+	registerWrite(s, defaultRepo)
+	registerNetwork(s, defaultRepo)
+	registerDangerous(s, defaultRepo)
+	registerWorktree(s, defaultRepo)
+	registerAdvanced(s, defaultRepo)
+}
+
+// repoArgDesc documents the optional per-call repository argument.
+const repoArgDesc = "Path to the git repository to operate on (absolute, or relative to the server's working directory). " +
+	"Defaults to the server's startup repository when omitted."
+
+// withRepo adds the optional "repo" argument shared by every git tool, letting
+// the caller choose which repository the operation targets.
+func withRepo() mcp.ToolOption {
+	return mcp.WithString("repo", mcp.Description(repoArgDesc))
+}
+
+// repoDir resolves the repository directory for a single tool call. A non-empty
+// "repo" argument is validated and returned as an absolute path; otherwise the
+// server's default repository is used. If neither is available, it errors.
+func (a args) repoDir(def string) (string, error) {
+	p := a.String("repo", "")
+	if p == "" {
+		if def == "" {
+			return "", fmt.Errorf("no repository selected: pass a \"repo\" argument, or start git-mcp with -repo / GIT_MCP_REPO")
+		}
+		return def, nil
+	}
+	// Reject UNC / network paths: opening one on Windows triggers NTLM auth to
+	// the remote host, leaking the user's credential hash. A caller-supplied
+	// repo must be a local filesystem path.
+	if isNetworkPath(p) {
+		return "", fmt.Errorf("repo %q is a network/UNC path; only local repositories are allowed", p)
+	}
+	return ResolveRepo(p)
+}
+
+// isNetworkPath reports whether p refers to a UNC / network location.
+func isNetworkPath(p string) bool {
+	if strings.HasPrefix(p, `\\`) || strings.HasPrefix(p, "//") {
+		return true
+	}
+	vol := filepath.VolumeName(p)
+	return strings.HasPrefix(vol, `\\`) || strings.HasPrefix(vol, "//")
 }
 
 // runGit shells out to the system `git` binary in the given repo directory.

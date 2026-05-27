@@ -8,14 +8,19 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func registerNetwork(s *server.MCPServer, repo string) {
+func registerNetwork(s *server.MCPServer, defaultRepo string) {
 	s.AddTool(mcp.NewTool("git_fetch",
 		mcp.WithDescription("Fetch updates from a remote."),
+		withRepo(),
 		mcp.WithString("remote", mcp.Description("Remote name (default origin)."), mcp.DefaultString("origin")),
 		mcp.WithBoolean("prune", mcp.Description("Prune deleted remote-tracking branches.")),
 		mcp.WithBoolean("all", mcp.Description("Fetch from all remotes.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		args := []string{"fetch"}
 		if a.Bool("prune", false) {
 			args = append(args, "--prune")
@@ -38,12 +43,17 @@ func registerNetwork(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_pull",
 		mcp.WithDescription("Pull from a remote into the current branch."),
+		withRepo(),
 		mcp.WithString("remote", mcp.Description("Remote name (default origin)."), mcp.DefaultString("origin")),
 		mcp.WithString("branch", mcp.Description("Remote branch (default: tracked upstream).")),
 		mcp.WithBoolean("rebase", mcp.Description("Use --rebase instead of merge.")),
 		mcp.WithBoolean("ff_only", mcp.Description("Only allow fast-forward updates.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		args := []string{"pull"}
 		if a.Bool("rebase", false) {
 			args = append(args, "--rebase")
@@ -71,6 +81,7 @@ func registerNetwork(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_push",
 		mcp.WithDescription("Push commits to a remote. force=true requires confirm=true (rewrites remote history)."),
+		withRepo(),
 		mcp.WithString("remote", mcp.Description("Remote name (default origin)."), mcp.DefaultString("origin")),
 		mcp.WithString("branch", mcp.Description("Local branch to push (default: current).")),
 		mcp.WithBoolean("set_upstream", mcp.Description("Set upstream tracking (-u).")),
@@ -79,6 +90,10 @@ func registerNetwork(s *server.MCPServer, repo string) {
 		mcp.WithBoolean("confirm", mcp.Description("Required when force=true.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		force := a.Bool("force", false)
 		if force && !a.Bool("confirm", false) {
 			return errResult(fmt.Errorf("force push rewrites remote history; pass confirm=true to proceed")), nil

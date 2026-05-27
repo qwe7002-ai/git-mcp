@@ -8,15 +8,20 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func registerWorktree(s *server.MCPServer, repo string) {
+func registerWorktree(s *server.MCPServer, defaultRepo string) {
 	s.AddTool(mcp.NewTool("git_worktree_add",
 		mcp.WithDescription("Create a new worktree at the given path, optionally checking out or creating a branch."),
+		withRepo(),
 		mcp.WithString("path", mcp.Required(), mcp.Description("Filesystem path for the new worktree.")),
 		mcp.WithString("branch", mcp.Description("Branch to check out in the worktree.")),
 		mcp.WithBoolean("create_branch", mcp.Description("Create a new branch named by 'branch' starting at 'from'.")),
 		mcp.WithString("from", mcp.Description("Starting point when create_branch=true (default HEAD).")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		path, err := a.RequireString("path")
 		if err != nil {
 			return errResult(err), nil
@@ -57,10 +62,15 @@ func registerWorktree(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_worktree_remove",
 		mcp.WithDescription("Remove a linked worktree."),
+		withRepo(),
 		mcp.WithString("path", mcp.Required(), mcp.Description("Worktree path to remove.")),
 		mcp.WithBoolean("force", mcp.Description("Force remove even with local modifications.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		path, err := a.RequireString("path")
 		if err != nil {
 			return errResult(err), nil

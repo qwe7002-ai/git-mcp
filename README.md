@@ -6,7 +6,7 @@ A Model Context Protocol (MCP) server that exposes common Git operations as tool
 
 - **Read queries** (`git_status`, `git_log`, `git_diff`, `git_show`, `git_branch_list`, `git_remote_list`, `git_tag_list`, `git_head`) use `go-git` where it adds value; falling back to the `git` CLI for output that is already well-formatted (e.g. diff/log).
 - **Mutations and network ops** shell out to the system `git` binary. This keeps behavior consistent with what users expect from `git`, and lets credential helpers / SSH agents / signing work without re-implementation.
-- **Operating repo** is fixed at startup via `-repo <path>` or the `GIT_MCP_REPO` env var; defaults to the current working directory.
+- **Operating repo is chosen per call.** Every tool accepts an optional `repo` argument (absolute, or relative to the server's working directory) so the caller decides which repository each operation targets. When omitted, it falls back to the startup default set via `-repo <path>` / `GIT_MCP_REPO` / the current working directory. Caller-supplied `repo` paths are validated as real git repositories; UNC/network paths are rejected (they would trigger NTLM auth on Windows). If no default is configured and the working directory is not a repo, `repo` becomes mandatory.
 - **Destructive operations** (`git_reset` with `mode=hard`, `git_push` with `force=true`, `git_clean`) require an explicit `confirm=true` parameter.
 
 ## Build

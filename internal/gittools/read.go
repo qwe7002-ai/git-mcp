@@ -13,10 +13,15 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func registerRead(s *server.MCPServer, repo string) {
+func registerRead(s *server.MCPServer, defaultRepo string) {
 	s.AddTool(mcp.NewTool("git_status",
 		mcp.WithDescription("Show the working tree status (porcelain format)."),
-	), func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		withRepo(),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, err := argsOf(req).repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		out, err := runGit(ctx, repo, "status", "--branch", "--short")
 		if err != nil {
 			return errResult(err), nil
@@ -26,11 +31,16 @@ func registerRead(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_log",
 		mcp.WithDescription("Show commit history. Optional limit (default 20) and revision range."),
+		withRepo(),
 		mcp.WithNumber("limit", mcp.Description("Maximum number of commits to return."), mcp.DefaultNumber(20)),
 		mcp.WithString("revision", mcp.Description("Branch, tag, or revision range (e.g. main, HEAD~10..HEAD).")),
 		mcp.WithString("path", mcp.Description("Restrict log to a specific path.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		limit := a.Int("limit", 20)
 		if limit <= 0 {
 			limit = 20
@@ -54,11 +64,16 @@ func registerRead(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_diff",
 		mcp.WithDescription("Show diff for working tree or staged changes."),
+		withRepo(),
 		mcp.WithBoolean("staged", mcp.Description("If true, show staged (index) diff instead of working tree.")),
 		mcp.WithString("revision", mcp.Description("Diff against this revision instead of HEAD/index.")),
 		mcp.WithString("path", mcp.Description("Restrict diff to a path.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		args := []string{"diff", "--no-color"}
 		if a.Bool("staged", false) {
 			args = append(args, "--cached")
@@ -81,9 +96,15 @@ func registerRead(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_show",
 		mcp.WithDescription("Show a commit, tag, or object."),
+		withRepo(),
 		mcp.WithString("revision", mcp.Required(), mcp.Description("Revision to show (commit hash, tag, HEAD).")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		rev, err := argsOf(req).RequireString("revision")
+		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
+		rev, err := a.RequireString("revision")
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -99,7 +120,12 @@ func registerRead(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_branch_list",
 		mcp.WithDescription("List local branches with the current branch marked by '*'."),
-	), func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		withRepo(),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, err := argsOf(req).repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		r, err := openRepo(repo)
 		if err != nil {
 			return errResult(err), nil
@@ -131,7 +157,12 @@ func registerRead(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_remote_list",
 		mcp.WithDescription("List configured remotes with their URLs."),
-	), func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		withRepo(),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, err := argsOf(req).repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		r, err := openRepo(repo)
 		if err != nil {
 			return errResult(err), nil
@@ -150,7 +181,12 @@ func registerRead(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_tag_list",
 		mcp.WithDescription("List all tags."),
-	), func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		withRepo(),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, err := argsOf(req).repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		r, err := openRepo(repo)
 		if err != nil {
 			return errResult(err), nil
@@ -170,7 +206,12 @@ func registerRead(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_stash_list",
 		mcp.WithDescription("List stash entries."),
-	), func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		withRepo(),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, err := argsOf(req).repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		out, err := runGit(ctx, repo, "stash", "list")
 		if err != nil {
 			return errResult(err), nil
@@ -180,7 +221,12 @@ func registerRead(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_worktree_list",
 		mcp.WithDescription("List linked worktrees."),
-	), func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		withRepo(),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, err := argsOf(req).repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		out, err := runGit(ctx, repo, "worktree", "list")
 		if err != nil {
 			return errResult(err), nil
@@ -190,7 +236,12 @@ func registerRead(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_head",
 		mcp.WithDescription("Show the current HEAD (branch and commit)."),
-	), func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		withRepo(),
+	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		repo, err := argsOf(req).repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		r, err := openRepo(repo)
 		if err != nil {
 			return errResult(err), nil

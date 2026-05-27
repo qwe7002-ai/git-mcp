@@ -8,13 +8,19 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func registerWrite(s *server.MCPServer, repo string) {
+func registerWrite(s *server.MCPServer, defaultRepo string) {
 	s.AddTool(mcp.NewTool("git_add",
 		mcp.WithDescription("Stage paths for the next commit. Use '.' for all changes."),
+		withRepo(),
 		mcp.WithArray("paths", mcp.Required(), mcp.Description("List of paths or patterns to stage."),
 			mcp.Items(map[string]any{"type": "string"})),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		paths, err := argsOf(req).StringSlice("paths")
+		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
+		paths, err := a.StringSlice("paths")
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -34,12 +40,17 @@ func registerWrite(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_commit",
 		mcp.WithDescription("Create a commit. Set amend=true to amend HEAD; set all=true to auto-stage tracked changes."),
+		withRepo(),
 		mcp.WithString("message", mcp.Description("Commit message. Required unless amend=true with no message change.")),
 		mcp.WithBoolean("amend", mcp.Description("Amend the previous commit.")),
 		mcp.WithBoolean("all", mcp.Description("Stage modified/deleted tracked files automatically (git commit -a).")),
 		mcp.WithBoolean("allow_empty", mcp.Description("Allow creating an empty commit.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		msg := a.String("message", "")
 		amend := a.Bool("amend", false)
 		all := a.Bool("all", false)
@@ -73,11 +84,16 @@ func registerWrite(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_checkout",
 		mcp.WithDescription("Switch to an existing branch/ref, or create a new branch with create=true."),
+		withRepo(),
 		mcp.WithString("ref", mcp.Required(), mcp.Description("Branch name or revision to switch to.")),
 		mcp.WithBoolean("create", mcp.Description("Create a new branch at the current HEAD (or 'from' if set).")),
 		mcp.WithString("from", mcp.Description("Starting point when create=true.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		ref, err := a.RequireString("ref")
 		if err != nil {
 			return errResult(err), nil
@@ -106,10 +122,15 @@ func registerWrite(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_branch_create",
 		mcp.WithDescription("Create a new branch without switching to it."),
+		withRepo(),
 		mcp.WithString("name", mcp.Required(), mcp.Description("New branch name.")),
 		mcp.WithString("from", mcp.Description("Starting point (default: HEAD).")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		name, err := a.RequireString("name")
 		if err != nil {
 			return errResult(err), nil
@@ -136,10 +157,15 @@ func registerWrite(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_branch_delete",
 		mcp.WithDescription("Delete a local branch. Use force=true to delete an unmerged branch."),
+		withRepo(),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Branch name to delete.")),
 		mcp.WithBoolean("force", mcp.Description("Force delete even if not merged.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		name, err := a.RequireString("name")
 		if err != nil {
 			return errResult(err), nil
@@ -160,11 +186,16 @@ func registerWrite(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_merge",
 		mcp.WithDescription("Merge a branch into the current branch."),
+		withRepo(),
 		mcp.WithString("branch", mcp.Required(), mcp.Description("Branch to merge from.")),
 		mcp.WithBoolean("no_ff", mcp.Description("Create a merge commit even when fast-forward is possible.")),
 		mcp.WithString("message", mcp.Description("Custom merge commit message.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		branch, err := a.RequireString("branch")
 		if err != nil {
 			return errResult(err), nil
@@ -189,12 +220,17 @@ func registerWrite(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_reset",
 		mcp.WithDescription("Reset the current HEAD to a revision. mode=hard requires confirm=true (destructive)."),
+		withRepo(),
 		mcp.WithString("mode", mcp.Description("soft | mixed | hard (default mixed)."), mcp.DefaultString("mixed"),
 			mcp.Enum("soft", "mixed", "hard")),
 		mcp.WithString("revision", mcp.Description("Revision to reset to (default HEAD)."), mcp.DefaultString("HEAD")),
 		mcp.WithBoolean("confirm", mcp.Description("Required when mode=hard; acknowledges that uncommitted changes will be lost.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		mode := a.String("mode", "mixed")
 		rev := a.String("revision", "HEAD")
 		if err := safeRef("revision", rev); err != nil {
@@ -215,11 +251,16 @@ func registerWrite(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_tag_create",
 		mcp.WithDescription("Create a tag at the current HEAD or a given revision."),
+		withRepo(),
 		mcp.WithString("name", mcp.Required(), mcp.Description("Tag name.")),
 		mcp.WithString("message", mcp.Description("Annotated tag message. If set, creates an annotated tag.")),
 		mcp.WithString("revision", mcp.Description("Revision to tag (default HEAD).")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		name, err := a.RequireString("name")
 		if err != nil {
 			return errResult(err), nil
@@ -251,10 +292,15 @@ func registerWrite(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_stash",
 		mcp.WithDescription("Stash uncommitted changes."),
+		withRepo(),
 		mcp.WithString("message", mcp.Description("Optional stash message.")),
 		mcp.WithBoolean("include_untracked", mcp.Description("Also stash untracked files.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		args := []string{"stash", "push"}
 		if a.Bool("include_untracked", false) {
 			args = append(args, "-u")
@@ -271,10 +317,16 @@ func registerWrite(s *server.MCPServer, repo string) {
 
 	s.AddTool(mcp.NewTool("git_stash_pop",
 		mcp.WithDescription("Apply and remove the most recent (or specified) stash entry."),
+		withRepo(),
 		mcp.WithString("ref", mcp.Description("Stash ref like stash@{0}. Defaults to the most recent.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		a := argsOf(req)
+		repo, err := a.repoDir(defaultRepo)
+		if err != nil {
+			return errResult(err), nil
+		}
 		args := []string{"stash", "pop"}
-		if r := argsOf(req).String("ref", ""); r != "" {
+		if r := a.String("ref", ""); r != "" {
 			if err := safeRef("ref", r); err != nil {
 				return errResult(err), nil
 			}
