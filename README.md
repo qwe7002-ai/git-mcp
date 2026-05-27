@@ -20,15 +20,16 @@ go build -o git-mcp.exe .
 ## Run
 
 ```pwsh
-# Use current directory as the repo
+# No default repo: every tool call must pass a "repo" argument
 .\git-mcp.exe
 
-# Or point at a specific repo
+# Set a default repo used when a call omits "repo"
 .\git-mcp.exe -repo C:\path\to\repo
 $env:GIT_MCP_REPO = "C:\path\to\repo"; .\git-mcp.exe
 ```
 
-The server speaks MCP over stdio.
+The server speaks MCP over stdio. The default repo is just a fallback — callers
+can still target any other local repository by passing `repo` on the call.
 
 ## VS Code / Claude Desktop config example
 
