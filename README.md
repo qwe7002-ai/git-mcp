@@ -1,0 +1,65 @@
+# git-mcp
+
+A Model Context Protocol (MCP) server that exposes common Git operations as tools, written in Go.
+
+## Design
+
+- **Read queries** (`git_status`, `git_log`, `git_diff`, `git_show`, `git_branch_list`, `git_remote_list`, `git_tag_list`, `git_head`) use `go-git` where it adds value; falling back to the `git` CLI for output that is already well-formatted (e.g. diff/log).
+- **Mutations and network ops** shell out to the system `git` binary. This keeps behavior consistent with what users expect from `git`, and lets credential helpers / SSH agents / signing work without re-implementation.
+- **Operating repo** is fixed at startup via `-repo <path>` or the `GIT_MCP_REPO` env var; defaults to the current working directory.
+- **Destructive operations** (`git_reset` with `mode=hard`, `git_push` with `force=true`, `git_clean`) require an explicit `confirm=true` parameter.
+
+## Build
+
+```pwsh
+cd c:\Users\qwe7002\project\git-mcp
+go mod tidy
+go build -o git-mcp.exe .
+```
+
+## Run
+
+```pwsh
+# Use current directory as the repo
+.\git-mcp.exe
+
+# Or point at a specific repo
+.\git-mcp.exe -repo C:\path\to\repo
+$env:GIT_MCP_REPO = "C:\path\to\repo"; .\git-mcp.exe
+```
+
+The server speaks MCP over stdio.
+
+## VS Code / Claude Desktop config example
+
+```jsonc
+{
+  "mcpServers": {
+    "git": {
+      "command": "C:\\Users\\qwe7002\\project\\git-mcp\\git-mcp.exe",
+      "args": ["-repo", "C:\\path\\to\\your\\repo"]
+    }
+  }
+}
+```
+
+## Tools
+
+| Category | Tool | Notes |
+|---|---|---|
+| Query | `git_status`, `git_log`, `git_diff`, `git_show`, `git_head` | |
+| Query | `git_branch_list`, `git_remote_list`, `git_tag_list`, `git_stash_list`, `git_worktree_list` | |
+| Branch | `git_branch_create`, `git_branch_delete`, `git_checkout`, `git_merge` | |
+| Commit | `git_add`, `git_commit`, `git_reset` | `reset mode=hard` needs `confirm=true` |
+| Remote | `git_fetch`, `git_pull`, `git_push` | `push force=true` needs `confirm=true` (uses `--force-with-lease`) |
+| Stash | `git_stash`, `git_stash_pop` | |
+| Worktree | `git_worktree_add`, `git_worktree_remove` | |
+| Tag | `git_tag_create` | |
+| Advanced | `git_rebase`, `git_cherry_pick` | Support `abort` / `continue` flags |
+| Danger | `git_clean` | Needs `confirm=true` unless `dry_run=true` |
+
+## Notes / limitations
+
+- Interactive rebase is not supported (no editor session over MCP).
+- `git_push --force` always uses `--force-with-lease` to reduce the risk of clobbering remote work.
+- The server operates on a single repository per process. Run multiple instances for multiple repos.
