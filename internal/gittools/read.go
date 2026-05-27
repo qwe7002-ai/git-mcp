@@ -63,11 +63,14 @@ func registerRead(s *server.MCPServer, defaultRepo string) {
 	})
 
 	s.AddTool(mcp.NewTool("git_diff",
-		mcp.WithDescription("Show diff for working tree or staged changes."),
+		mcp.WithDescription("Show diff for working tree or staged changes. Output is capped (~60KB by default) to fit LLM context; use summary/name_only or path to narrow large diffs."),
 		withRepo(),
 		mcp.WithBoolean("staged", mcp.Description("If true, show staged (index) diff instead of working tree.")),
 		mcp.WithString("revision", mcp.Description("Diff against this revision instead of HEAD/index.")),
 		mcp.WithString("path", mcp.Description("Restrict diff to a path.")),
+		mcp.WithBoolean("summary", mcp.Description("Return only --stat (per-file +/- summary) instead of the full patch.")),
+		mcp.WithBoolean("name_only", mcp.Description("Return only the list of changed file paths.")),
+		mcp.WithNumber("max_bytes", mcp.Description("Cap output size in bytes (default 60000, 0 = unlimited). Output is truncated on a line boundary with a notice.")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
 		repo, err := a.repoDir(defaultRepo)
@@ -75,6 +78,12 @@ func registerRead(s *server.MCPServer, defaultRepo string) {
 			return errResult(err), nil
 		}
 		args := []string{"diff", "--no-color"}
+		switch {
+		case a.Bool("name_only", false):
+			args = append(args, "--name-only")
+		case a.Bool("summary", false):
+			args = append(args, "--stat")
+		}
 		if a.Bool("staged", false) {
 			args = append(args, "--cached")
 		}
@@ -91,13 +100,17 @@ func registerRead(s *server.MCPServer, defaultRepo string) {
 		if err != nil {
 			return errResult(err), nil
 		}
+		max := a.Int("max_bytes", defaultMaxBytes)
+		out = truncate(out, max, "Re-run with summary=true, name_only=true, a path filter, or a larger max_bytes to see more.")
 		return textResult(out), nil
 	})
 
 	s.AddTool(mcp.NewTool("git_show",
-		mcp.WithDescription("Show a commit, tag, or object."),
+		mcp.WithDescription("Show a commit, tag, or object. Output is capped (~60KB by default) to fit LLM context; use summary for large commits."),
 		withRepo(),
 		mcp.WithString("revision", mcp.Required(), mcp.Description("Revision to show (commit hash, tag, HEAD).")),
+		mcp.WithBoolean("summary", mcp.Description("Show only the commit metadata and --stat instead of the full patch.")),
+		mcp.WithNumber("max_bytes", mcp.Description("Cap output size in bytes (default 60000, 0 = unlimited).")),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		a := argsOf(req)
 		repo, err := a.repoDir(defaultRepo)
@@ -111,10 +124,17 @@ func registerRead(s *server.MCPServer, defaultRepo string) {
 		if err := safeRef("revision", rev); err != nil {
 			return errResult(err), nil
 		}
-		out, err := runGit(ctx, repo, "show", "--no-color", rev)
+		showArgs := []string{"show", "--no-color"}
+		if a.Bool("summary", false) {
+			showArgs = append(showArgs, "--stat")
+		}
+		showArgs = append(showArgs, rev)
+		out, err := runGit(ctx, repo, showArgs...)
 		if err != nil {
 			return errResult(err), nil
 		}
+		max := a.Int("max_bytes", defaultMaxBytes)
+		out = truncate(out, max, "Re-run with summary=true or a larger max_bytes to see more.")
 		return textResult(out), nil
 	})
 

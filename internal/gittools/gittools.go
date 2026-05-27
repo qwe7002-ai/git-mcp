@@ -113,6 +113,28 @@ func textResult(s string) *mcp.CallToolResult {
 	return mcp.NewToolResultText(s)
 }
 
+// defaultMaxBytes caps output that may explode in size (diffs, show). Tuned to
+// stay well under typical LLM tool-result token limits (~15K tokens).
+const defaultMaxBytes = 60_000
+
+// truncate caps s to max bytes on a line boundary and appends a hint telling
+// the caller how to fetch more / narrow the query. A non-positive max disables
+// truncation.
+func truncate(s string, max int, hint string) string {
+	if max <= 0 || len(s) <= max {
+		return s
+	}
+	cut := s[:max]
+	if i := strings.LastIndexByte(cut, '\n'); i > max/2 {
+		cut = cut[:i]
+	}
+	suffix := fmt.Sprintf("\n\n... [truncated: %d of %d bytes shown]", len(cut), len(s))
+	if hint != "" {
+		suffix += ". " + hint
+	}
+	return cut + suffix
+}
+
 // errResult wraps an error as a tool error result.
 func errResult(err error) *mcp.CallToolResult {
 	return mcp.NewToolResultError(err.Error())
