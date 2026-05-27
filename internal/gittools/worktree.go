@@ -26,7 +26,7 @@ func registerWorktree(s *server.MCPServer, defaultRepo string) {
 		if err != nil {
 			return errResult(err), nil
 		}
-		if err := safeRef("path", path); err != nil {
+		if err := safePath("path", path); err != nil {
 			return errResult(err), nil
 		}
 		args := []string{"worktree", "add"}
@@ -75,7 +75,7 @@ func registerWorktree(s *server.MCPServer, defaultRepo string) {
 		if err != nil {
 			return errResult(err), nil
 		}
-		if err := safeRef("path", path); err != nil {
+		if err := safePath("path", path); err != nil {
 			return errResult(err), nil
 		}
 		args := []string{"worktree", "remove"}

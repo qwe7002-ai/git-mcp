@@ -174,10 +174,23 @@ func (a args) RequireString(key string) (string, error) {
 	return s, nil
 }
 
-// safeRef rejects values that would be interpreted as git command-line flags.
-// Callers must run this on every user-supplied ref / branch / remote / revision
-// before appending it to a git argv.
+// safeRef rejects ref-like values (branch, remote, revision, tag, commit) that
+// would be unsafe to splice into a git argv. Git refs cannot contain whitespace
+// or NUL, so we reject those here too — this catches callers that pack flags
+// into a single string like "abc123 --stat --oneline".
 func safeRef(name, value string) error {
+	if strings.HasPrefix(value, "-") {
+		return fmt.Errorf("argument %q must not start with '-' (would be parsed as a git option): %q", name, value)
+	}
+	if i := strings.IndexAny(value, " \t\r\n\x00"); i >= 0 {
+		return fmt.Errorf("argument %q must not contain whitespace; pass extra flags as their own arguments: %q", name, value)
+	}
+	return nil
+}
+
+// safePath rejects path-like values that would be parsed as a git flag. Unlike
+// safeRef, whitespace is allowed (Windows paths frequently contain spaces).
+func safePath(name, value string) error {
 	if strings.HasPrefix(value, "-") {
 		return fmt.Errorf("argument %q must not start with '-' (would be parsed as a git option): %q", name, value)
 	}
