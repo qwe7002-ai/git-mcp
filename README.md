@@ -50,9 +50,11 @@ can still target any other local repository by passing `repo` on the call.
 |---|---|---|
 | Query | `git_status`, `git_log`, `git_diff`, `git_show`, `git_head` | |
 | Query | `git_branch_list`, `git_remote_list`, `git_tag_list`, `git_stash_list`, `git_worktree_list` | |
+| Setup | `git_clone`, `git_init` | Target directory must be local (UNC rejected); `clone` refuses non-empty targets |
 | Branch | `git_branch_create`, `git_branch_delete`, `git_checkout`, `git_merge` | |
 | Commit | `git_add`, `git_commit`, `git_reset` | `reset mode=hard` needs `confirm=true` |
 | Remote | `git_fetch`, `git_pull`, `git_push` | `push force=true` needs `confirm=true` (uses `--force-with-lease`) |
+| Remote | `git_remote_add`, `git_remote_remove`, `git_remote_set_url` | |
 | Stash | `git_stash`, `git_stash_pop` | |
 | Worktree | `git_worktree_add`, `git_worktree_remove` | |
 | Tag | `git_tag_create` | |
