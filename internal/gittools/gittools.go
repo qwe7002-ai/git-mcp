@@ -32,16 +32,39 @@ func openRepo(path string) (*git.Repository, error) {
 	return git.PlainOpenWithOptions(path, &git.PlainOpenOptions{DetectDotGit: true})
 }
 
-// Register attaches every git tool to the MCP server. defaultRepo is used for
-// any tool call that omits the per-call "repo" argument; it may be empty, in
-// which case a "repo" argument becomes mandatory.
-func Register(s *server.MCPServer, defaultRepo string) {
-	registerRead(s, defaultRepo)
-	registerWrite(s, defaultRepo)
-	registerNetwork(s, defaultRepo)
-	registerDangerous(s, defaultRepo)
-	registerWorktree(s, defaultRepo)
-	registerAdvanced(s, defaultRepo)
+// Options configures the git tools at registration time.
+type Options struct {
+	// DefaultRepo is used for any tool call that omits the per-call "repo"
+	// argument. It may be empty, in which case a "repo" argument becomes
+	// mandatory.
+	DefaultRepo string
+	// CommitName and CommitEmail, when both non-empty, force every commit
+	// created by git_commit to use this identity via `git -c user.name=...
+	// -c user.email=... commit ...`. Useful for ensuring an MCP server
+	// authors commits as a specific identity regardless of the host's
+	// global git config.
+	CommitName  string
+	CommitEmail string
+}
+
+// forceCommitName and forceCommitEmail are the identity prepended to every
+// `git` invocation when both are non-empty. Set once at Register and read by
+// runGit; never mutated afterwards.
+var (
+	forceCommitName  string
+	forceCommitEmail string
+)
+
+// Register attaches every git tool to the MCP server using the given options.
+func Register(s *server.MCPServer, opts Options) {
+	forceCommitName = opts.CommitName
+	forceCommitEmail = opts.CommitEmail
+	registerRead(s, opts.DefaultRepo)
+	registerWrite(s, opts.DefaultRepo)
+	registerNetwork(s, opts.DefaultRepo)
+	registerDangerous(s, opts.DefaultRepo)
+	registerWorktree(s, opts.DefaultRepo)
+	registerAdvanced(s, opts.DefaultRepo)
 }
 
 // repoArgDesc documents the optional per-call repository argument.
@@ -86,8 +109,16 @@ func isNetworkPath(p string) bool {
 // runGit shells out to the system `git` binary in the given repo directory.
 // Used for operations go-git does not support (worktree, rebase, cherry-pick,
 // stash push/pop, clean) or where auth handling is simpler via the CLI
-// (fetch/pull/push).
+// (fetch/pull/push). When a forced commit identity is configured, leading
+// `-c user.name=... -c user.email=...` arguments are prepended so any
+// commit-creating subcommand (commit, merge, rebase, cherry-pick, pull) uses
+// the configured identity.
 func runGit(ctx context.Context, repo string, args ...string) (string, error) {
+	if forceCommitName != "" && forceCommitEmail != "" {
+		full := make([]string, 0, len(args)+4)
+		full = append(full, "-c", "user.name="+forceCommitName, "-c", "user.email="+forceCommitEmail)
+		args = append(full, args...)
+	}
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = repo
 	var stdout, stderr bytes.Buffer
