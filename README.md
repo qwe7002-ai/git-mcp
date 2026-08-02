@@ -1,5 +1,11 @@
 # git-mcp
 
+> **Note:** These git tools have been consolidated into
+> [**codex-remote-mcp**](https://github.com/qwe7002-ai/codex-remote-mcp), a
+> single Go binary (on the official `modelcontextprotocol/go-sdk`) that serves
+> codex, git, folder-sync, and filesystem tools over Streamable HTTP or stdio.
+> New work happens there; this repository remains as the standalone git server.
+
 A Model Context Protocol (MCP) server that exposes common Git operations as tools, written in Go.
 
 ## Design
